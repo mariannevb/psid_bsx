@@ -1,0 +1,87 @@
+---
+title: "Generate State Rename"
+author: "MB"
+date: "10/23/2019"
+output: html_document
+---
+
+```{r, message=FALSE}
+# load dplyr and company
+library(tidyverse)
+```
+
+# Load Data
+
+```{r}
+data_directory <- "C:/Users/BaxterMarianne/Dropbox (BOSTON UNIVERSITY)/psid/xu/mb"
+```
+
+```{r}
+new_names_raw <- read_csv(paste0(data_directory, "/assets.csv"))
+```
+
+```{r}
+head(new_names_raw)
+```
+
+# Process Data
+
+```{r}
+num_years <- 10
+base <- c("year", "code")
+new_column_names <- c("remove_me")
+
+for (i in seq(1, num_years)) {
+  new_column_names <- c(new_column_names, paste0(base, i))
+}
+```
+
+Split on (all??) the brackets.
+
+```{r}
+separated_names <- new_names_raw %>% 
+  # How to separate on just one bracket? Not possible with separate
+  
+  ### from R documentation for separate: 
+  ### If character, is interpreted as a regular expression.....
+  ###The default value is a regular expression that matches any sequence of non-alphanumeric values.
+  
+  # Are the spaces really gone, or can we just not see them? (really gone)
+  
+  separate(col = YEAR_CODE, 
+           into = new_column_names,
+            by = "[\\]]",
+                  extra = "merge")
+```
+
+```{r}
+long_dataset <- separated_names %>% 
+  select( - remove_me) %>% 
+  # Make a long dataset
+  gather(my_key, my_value, - NEW_NAME) %>% 
+  mutate(year_index = str_remove_all(my_key, "[:alpha:]"),
+         year_or_code = str_remove_all(my_key, "[0-9]")) %>%
+  select( - my_key) %>% 
+  # Make it wider
+  spread(year_or_code, my_value) %>% 
+  # Take out missing values (created by separate)
+  filter(!is.na(code))
+```
+
+```{r}
+stata_command <- long_dataset %>% 
+  # Or whatever the Stata name is...
+  mutate(stata_command = paste0("cap rename ", code, " ", NEW_NAME)) %>% 
+  mutate(new_year_ugh = if_else(condition = as.numeric(year) >= 50, # arbitrary in (17, 99)
+                                true      = paste0("19", year), 
+                                false     = paste0("20", year)))
+```
+
+Run this last chunk manually! Make sure it actually runs, check the folder.
+
+```{r, eval=FALSE}
+write_csv(x = stata_command,
+          path = paste0(data_directory, 
+                        "/new_stata_commands.csv"))
+```
+
